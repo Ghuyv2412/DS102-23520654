@@ -3,10 +3,8 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import re
 import time
-
 from datetime import datetime
 from urllib.parse import urljoin
-
 
 BASE_URL = "https://xemthoitiet.vn/"
 
@@ -85,7 +83,6 @@ VALID_LOCATIONS = {
 }
 
 def get_locations():
-
     response = requests.get(
         BASE_URL,
         headers=headers,
@@ -103,34 +100,26 @@ def get_locations():
     locations = {}
 
     for a in soup.find_all("a", href=True):
-
         href = a["href"]
-
-        # Dùng khoảng trắng để tránh dính chữ
         name = a.get_text(
             " ",
             strip=True
         )
-
         if re.fullmatch(
             r"/thoi-tiet/[^/]+/?",
             href
         ):
-
             if name in VALID_LOCATIONS:
 
                 locations[name] = urljoin(
                     BASE_URL,
                     href
                 )
-
     return locations
 
 
 def crawl_weather(location, base_url):
-
     url = base_url.rstrip("/") + "/7-ngay-toi/"
-
     try:
         response = requests.get(
             url,
@@ -140,33 +129,24 @@ def crawl_weather(location, base_url):
 
     except requests.RequestException:
         return []
-
     if response.status_code != 200:
         return []
-
     soup = BeautifulSoup(
         response.text,
         "html.parser"
     )
-
     text = soup.get_text(
         separator=" ",
         strip=True
     )
-
     text = re.sub(
         r"\s+",
         " ",
         text
     )
 
-    start = text.find(
-        "Dự báo thời tiết"
-    )
-
-    end = text.find(
-        "Nhiệt độ và khả năng có mưa"
-    )
+    start = text.find("Dự báo thời tiết")
+    end = text.find("Nhiệt độ và khả năng có mưa")
 
     if start == -1 or end == -1:
         return []
@@ -231,19 +211,15 @@ def crawl_weather(location, base_url):
             "temp_min_c": int(item[1]),
             "temp_max_c": int(item[2]),
             "condition": item[3].strip(),
-
             "day_temp_c": int(item[6]),
             "night_temp_c": int(item[7]),
             "morning_temp_c": int(item[8]),
             "evening_temp_c": int(item[9]),
-
             "pressure_hpa": int(item[10]),
             "sunrise": item[11],
             "sunset": item[12],
-
             "humidity_percent": int(item[13]),
             "wind_speed_kmh": float(item[14]),
-
             "source_url": url,
             "crawl_time": crawl_time
         })
@@ -252,20 +228,16 @@ def crawl_weather(location, base_url):
 
 
 locations = get_locations()
-
 all_data = []
 
 for name, url in locations.items():
-
     weather_data = crawl_weather(
         name,
         url
     )
-
     all_data.extend(
         weather_data
     )
-
     time.sleep(1)
 
 
@@ -275,20 +247,17 @@ df = pd.DataFrame(
 
 
 if not df.empty:
-
     df.to_csv(
         "weather_data.csv",
         index=False,
         encoding="utf-8-sig"
     )
-
     df.to_csv(
         "weather_data.tsv",
         sep="\t",
         index=False,
         encoding="utf-8-sig"
     )
-
     df.to_json(
         "weather_data.json",
         orient="records",
