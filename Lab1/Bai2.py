@@ -3,209 +3,70 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import re
 import time
-from datetime import datetime
 from urllib.parse import urljoin
-
 BASE_URL = "https://xemthoitiet.vn/"
-
 headers = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 "
-        "Chrome/120.0 Safari/537.36"
-    )
-}
-
-VALID_LOCATIONS = {
-    "Hà Giang",
-    "Cao Bằng",
-    "Bắc Kạn",
-    "Tuyên Quang",
-    "Thái Nguyên",
-    "Lạng Sơn",
-    "Quảng Ninh",
-    "Bắc Giang",
-    "Phú Thọ",
-    "Lào Cai",
-    "Điện Biên",
-    "Lai Châu",
-    "Sơn La",
-    "Yên Bái",
-    "Hòa Bình",
-    "Hà Nội",
-    "Vĩnh Phúc",
-    "Bắc Ninh",
-    "Hải Dương",
-    "Hải Phòng",
-    "Hưng Yên",
-    "Thái Bình",
-    "Hà Nam",
-    "Nam Định",
-    "Ninh Bình",
-    "Thanh Hóa",
-    "Nghệ An",
-    "Hà Tĩnh",
-    "Quảng Bình",
-    "Quảng Trị",
-    "Thừa Thiên Huế",
-    "Đà Nẵng",
-    "Quảng Nam",
-    "Quảng Ngãi",
-    "Bình Định",
-    "Phú Yên",
-    "Khánh Hòa",
-    "Ninh Thuận",
-    "Bình Thuận",
-    "Kon Tum",
-    "Gia Lai",
-    "Đắk Lắk",
-    "Đắk Nông",
-    "Lâm Đồng",
-    "Hồ Chí Minh",
-    "Bà Rịa - Vũng Tàu",
-    "Bình Phước",
-    "Bình Dương",
-    "Tây Ninh",
-    "Đồng Nai",
-    "An Giang",
-    "Bạc Liêu",
-    "Bến Tre",
-    "Cà Mau",
-    "Cần Thơ",
-    "Đồng Tháp",
-    "Hậu Giang",
-    "Kiên Giang",
-    "Long An",
-    "Sóc Trăng",
-    "Tiền Giang",
-    "Trà Vinh",
-    "Vĩnh Long"
+    "User-Agent": "Mozilla/5.0"
 }
 
 def get_locations():
-    response = requests.get(
-        BASE_URL,
-        headers=headers,
-        timeout=20
-    )
-
+    response = requests.get(BASE_URL, headers=headers)
     if response.status_code != 200:
+        print("NOT FOUND!")
         return {}
-
-    soup = BeautifulSoup(
-        response.text,
-        "html.parser"
-    )
-
+    soup = BeautifulSoup(response.text, "html.parser")
     locations = {}
-
     for a in soup.find_all("a", href=True):
         href = a["href"]
-        name = a.get_text(
-            " ",
-            strip=True
-        )
-        if re.fullmatch(
-            r"/thoi-tiet/[^/]+/?",
-            href
-        ):
-            if name in VALID_LOCATIONS:
-
-                locations[name] = urljoin(
-                    BASE_URL,
-                    href
-                )
+        name = a.get_text(" ", strip=True)
+        if re.fullmatch(r"/thoi-tiet/[^/]+/?", href):
+            if (
+                name != ""
+                and "Hôm nay" not in name
+                and "arrow_circle_right" not in name
+                and "Thời tiết" not in name
+                and len(name) < 30
+            ):
+                locations[name] = urljoin(BASE_URL, href)
     return locations
-
 
 def crawl_weather(location, base_url):
     url = base_url.rstrip("/") + "/7-ngay-toi/"
-    try:
-        response = requests.get(
-            url,
-            headers=headers,
-            timeout=20
-        )
-
-    except requests.RequestException:
-        return []
+    response = requests.get(url, headers=headers)
     if response.status_code != 200:
         return []
-    soup = BeautifulSoup(
-        response.text,
-        "html.parser"
-    )
-    text = soup.get_text(
-        separator=" ",
-        strip=True
-    )
-    text = re.sub(
-        r"\s+",
-        " ",
-        text
-    )
-
+    soup = BeautifulSoup(response.text, "html.parser")
+    text = soup.get_text(" ", strip=True)
+    text = re.sub(r"\s+", " ", text)
     start = text.find("Dự báo thời tiết")
     end = text.find("Nhiệt độ và khả năng có mưa")
-
     if start == -1 or end == -1:
         return []
 
     weather_text = text[start:end]
-
-    pattern = r"""
-    (Hôm\ nay|T[2-7]\s+\d{2}/\d{2}|CN\s+\d{2}/\d{2})
-    \s+
-    (\d+)°\s*/\s*(\d+)°
-    \s+
-    (.+?)
-    \s+
-    (\d+)\s*%
-    \s+
-    ([\d.]+)\s*km/h
-    \s+
-    Ngày/đêm
-    \s+
-    (\d+)°/(\d+)°
-    \s+
-    Sáng/tối
-    \s+
-    (\d+)°/(\d+)°
-    \s+
-    Áp\ suất
-    \s+
-    (\d+)\s*hPa
-    \s+
-    Mặt\ trời\ mọc\ lặn
-    \s+
-    ([0-9:]+\s*[ap]m)
-    \s*/\s*
-    ([0-9:]+\s*[ap]m)
-    \s+
-    Độ\ ẩm
-    \s+
-    (\d+)%
-    \s+
-    Gió
-    \s+
-    ([\d.]+)\s*km/h
-    """
+    pattern = (
+        r"(Hôm nay|T[2-7]\s+\d{2}/\d{2}|CN\s+\d{2}/\d{2})\s+"
+        r"(\d+)°\s*/\s*(\d+)°\s+"
+        r"(.+?)\s+(\d+)\s*%\s+([\d.]+)\s*km/h\s+"
+        r"Ngày/đêm\s+(\d+)°/(\d+)°\s+"
+        r"Sáng/tối\s+(\d+)°/(\d+)°\s+"
+        r"Áp suất\s+(\d+)\s*hPa\s+"
+        r"Mặt trời mọc lặn\s+"
+        r"([0-9:]+\s*[ap]m)\s*/\s*([0-9:]+\s*[ap]m)\s+"
+        r"Độ ẩm\s+(\d+)%\s+"
+        r"Gió\s+([\d.]+)\s*km/h"
+    )
 
     matches = re.findall(
         pattern,
         weather_text,
-        re.VERBOSE | re.IGNORECASE
+        re.IGNORECASE
     )
 
     data = []
 
-    crawl_time = datetime.now().strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
-
     for item in matches:
-
-        data.append({
+        row = {
             "location": location,
             "date": item[0],
             "temp_min_c": int(item[1]),
@@ -219,42 +80,26 @@ def crawl_weather(location, base_url):
             "sunrise": item[11],
             "sunset": item[12],
             "humidity_percent": int(item[13]),
-            "wind_speed_kmh": float(item[14]),
-            "source_url": url,
-            "crawl_time": crawl_time
-        })
-
+            "wind_speed_kmh": float(item[14])
+        }
+        data.append(row)
     return data
 
-
 locations = get_locations()
+print("Số địa điểm tìm được:", len(locations))
 all_data = []
-
 for name, url in locations.items():
-    weather_data = crawl_weather(
-        name,
-        url
-    )
-    all_data.extend(
-        weather_data
-    )
+    print("Đang lấy dữ liệu:", name)
+    weather_data = crawl_weather(name, url)
+    all_data.extend(weather_data)
     time.sleep(1)
 
-
-df = pd.DataFrame(
-    all_data
-)
-
+df = pd.DataFrame(all_data)
+print(df.head())
 
 if not df.empty:
     df.to_csv(
         "weather_data.csv",
-        index=False,
-        encoding="utf-8-sig"
-    )
-    df.to_csv(
-        "weather_data.tsv",
-        sep="\t",
         index=False,
         encoding="utf-8-sig"
     )
@@ -264,5 +109,6 @@ if not df.empty:
         force_ascii=False,
         indent=4
     )
-
-    print("Completed.")
+    print("DONE.")
+else:
+    print("ERROR")
